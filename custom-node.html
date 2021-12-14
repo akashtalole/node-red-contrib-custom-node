@@ -1,0 +1,193 @@
+<script type="text/javascript">
+    function updateEditorLayout(){
+        var dlg = $("#dialog-form");
+        var height = dlg.height() - 5;
+        var expandRow = dlg.find('.form-row-auto-height');
+        if(expandRow && expandRow.length){
+            let childRows = dlg.find('.form-row:not(.form-row-auto-height)');
+            for (var i=0; i<childRows.size(); i++) {
+                var cr = $(childRows[i]);
+                if(cr.is(":visible"))
+                    height -= cr.outerHeight(true);
+            }
+            let ol = $(expandRow.find(".red-ui-editableList-list"));
+            if(ol && ol.length){
+                ol.editableList("height",height);
+            } else {
+                expandRow.css("height",height+"px");
+            }
+        } 
+    }
+    RED.nodes.registerType('custom-node',{
+        category: 'function',
+        color: 'rgb( 63, 173, 181)',
+        defaults: {
+            order: {value: 0},
+            width: {
+                value: 0,
+                validate: function(v) {
+                    var valid = true
+                    var width = v||0;
+                    $("#node-input-size").toggleClass("input-error",!valid);
+                    return valid;
+                }},
+            height: {value: -1},
+            fontSize: {value: 16},
+            inputMenuField: {value:"menu", validate: function(v) { return !v || v !== ""}},
+            inputMenuType: {value: "msg"},
+            menuItems: {value: []},
+            colors: {value: 'native'},
+            textColor: {value: '#000000'},
+            backgroundColor: {value: '#ffffff'},
+            borderColor: {value: '#626262'},
+            name: {value: ''}
+        },
+        inputs:1,
+        outputs:1,
+        icon: "menu.png",
+        align: 'left',
+        paletteLabel:"Custom node",
+        label: function() {
+            return this.name || "Custom node";
+        },
+        oneditprepare: function() {
+            var node = this;
+
+            $('#node-input-inputMenuField').val(node.inputMenuField || "menu");
+            // Create a table of menu items
+            var menuItemList = $("#node-input-menuItems-container").css('min-height','150px').css('min-width','500px').editableList({
+                header: $("<div>").css({padding:"6px"}).append($.parseHTML(
+                    "<div style='width:15%; margin-left:25px; display: inline-grid'><b>Topic</b></div>" +
+                    "<div style='width:10%; display: inline-grid'><b>Min</b></div>" +
+                    "<div style='width:10%; display: inline-grid'><b>Max</b></div>" +
+                    "<div style='width:25%; display: inline-grid'><b>minThreshold</b></div>" +
+                    "<div style='width:25%; display: inline-grid'><b>maxThreshold</b></div>"
+                    )),           
+                addItem: function(container, i, menuItem) {
+                    // When menuItem === {} then we have a new list item (i.e. user pressed the addItem button)
+                    if (Object.keys(menuItem).length === 0) {
+                        // Initialize new items in the list.
+                        menuItem = {
+                            topic      : "", 
+                            min   : "",
+                            max    : "",
+                            minThreshold   : "",
+                            maxThreshold : "",
+                        };
+                    }
+                        
+                    // Add a new row to the editableList
+                    var row = $('<div/>').appendTo(container);
+                    $('<i style="color:#eee; cursor:move; margin-left:3px;" class="red-ui-editableList-item-handle fa fa-bars node-input-menuItem-handle"></i>').appendTo(row);
+
+                     //Column 1 : Add an input field (type string) to the new row, that represents the Topic value 
+                     var topicField = $('<input/>',{class:"node-input-menuItem-topic",type:"text",placeholder:"topic"}).css({"width":"15%","margin-left":"25px","margin-right":"5px"}).appendTo(row);
+                     topicField.val(menuItem.topic);
+
+                    // Column 2 : Add an input field (type string) to the new row, that represents the min value 
+                    var minField = $('<input/>',{class:"node-input-menuItem-min",type:"text",placeholder:"min"}).css({"width":"15%","margin-left":"5px","margin-right":"5px"}).appendTo(row);
+                    minField.val(menuItem.min);
+                    
+                    // Column 3 : Add an input field (type string) to the new row, that represents the max value
+                    var maxField = $('<input/>',{class:"node-input-menuItem-max",type:"text",placeholder:"max"}).css({"width":"15%","margin-left":"5px","margin-right":"5px"}).appendTo(row);
+                    maxField.val(menuItem.max);
+
+                    // Column 4 : Add an input field (type string) to the new row, that represents the minThreshold value
+                    var minThresholdField = $('<input/>',{class:"node-input-menuItem-minThreshold",type:"text",placeholder:"minThreshold"}).css({"width":"15%","margin-left":"5px","margin-right":"5px"}).appendTo(row);
+                    minThresholdField.val(menuItem.minThreshold);
+
+                    // Column 5 : Add a input field (type string) to the new row, that represents the maxThreshold value
+                    var maxThresholdField = $('<input/>',{class:"node-input-menuItem-maxThreshold",type:"text",placeholder:"maxThreshold"}).css({"width":"25%","margin-left":"5px"}).appendTo(row);
+                    maxThresholdField.val(menuItem.maxThreshold);
+                    
+                },
+                removable: true
+            });
+            // Show all the menu items (stored in this node) into the editableList
+            if (this.menuItems) {
+                this.menuItems.forEach(function (menuItem, index) {
+                    menuItemList.editableList('addItem', {topic:menuItem.topic, min:menuItem.min, max:menuItem.max, minThreshold:menuItem.minThreshold, maxThreshold:menuItem.maxThreshold});
+                });
+            }
+            
+            // Only show the menu items table, when the menu is "fixed"
+            $("#node-input-typed-inputMenuField").change(function(type, value) {
+                if (value === "fixed") {
+                    $(".contextmenu-menuitems-row").show();
+                }
+                else {
+                    $(".contextmenu-menuitems-row").hide();
+                }
+            });
+            
+            var value = $("#node-input-inputMenuField").val() || '';
+            $("#node-input-typed-inputMenuField").typedInput('value',value);
+            
+        },
+        oneditsave: function() {
+            var node = this;
+            
+            // Copy all the menu items from the editableList to this node
+            node.menuItems = [];
+            var menuItemsList = $("#node-input-menuItems-container").editableList('items');
+            menuItemsList.each(function(i) {
+                var menuItem = $(this);
+                var o = {
+                    topic: menuItem.find(".node-input-menuItem-topic").val(), 
+                    min: menuItem.find(".nodnode-input-menuItem-min").val(), 
+                    max: menuItem.find(".nonode-input-menuItem-max").val(), 
+                    minThreshold: menuItem.find(".node-input-menuItem-minThreshold").val(), 
+                    maxThreshold: menuItem.find(".node-input-menuItem-maxThreshold").val(), 
+                }                
+                node.menuItems.push(o);
+            });
+        },
+        oneditresize: function(){
+            updateEditorLayout()
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="custom-node">
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-typed-outputField"><i class="fa fa-sign-out"></i> Configuraion</label>
+    </div>  
+  
+    <div class="form-row form-row-auto-height contextmenu-menuitems-row">
+        <!-- Table with menu items -->
+        <ol id="node-input-menuItems-container"></ol>
+    </div>
+    
+    </br>
+</script>
+<script type="text/html" data-help-name="custom-node">
+    <p>A Node Red custom node.</p>
+    <h3>General Properties...</h3>
+    <dl class="message-properties">
+        <h4>Topic</h4>
+        <div style="padding-left: 15px">
+            Topic.
+        </div>
+        <h4>Min</h4>
+        <div style="padding-left: 15px">
+            Min value
+        </div>    
+        <h4>Max</h4>
+        <div style="padding-left: 15px">
+            Max value
+        </div>
+        <h4>Min Threshold</h4>
+        <div style="padding-left: 15px">
+            Min Threshold value
+        </div>        
+        <h4>Max Threshold</h4>
+        <div style="padding-left: 15px">
+            Max Threshold value.
+        </div>
+    </dl>
+</script>
